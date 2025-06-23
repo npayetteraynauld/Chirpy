@@ -84,6 +84,37 @@ func (cfg *apiConfig) handlerGetChirps(w http.ResponseWriter, req *http.Request)
 	respondWithJson(w, http.StatusOK, returns)
 }
 
+func (cfg *apiConfig) handlerGetChirp(w http.ResponseWriter, req *http.Request) {
+	type returnVals struct {
+			ID        uuid.UUID `json:"id"`
+			CreatedAt time.Time `json:"created_at"`
+			UpdatedAt time.Time `json:"updated_at"`
+			Body      string    `json:"body"`
+			UserID    uuid.UUID `json:"user_id"`
+	}
+
+	chirpId := req.PathValue("chirpID")
+
+	id, err := uuid.Parse(chirpId)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Couldn't parse id", err)
+	}
+
+	chirp, err := cfg.queries.GetChirp(req.Context(), id)
+	if err != nil {
+		respondWithError(w, http.StatusNotFound, "Couldn't get chirp", err)
+		return
+	}
+
+	respondWithJson(w, http.StatusOK, returnVals{
+		ID: chirp.ID,
+		CreatedAt: chirp.CreatedAt,
+		UpdatedAt: chirp.UpdatedAt,
+		Body: chirp.Body,
+		UserID: chirp.UserID,
+	})
+}
+
 func cleanString(s string) string {
 	badWords := []string{"kerfuffle", "sharbert", "fornax"}
 	splitString := strings.Split(s, " ")

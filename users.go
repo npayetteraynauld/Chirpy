@@ -8,6 +8,8 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/npayetteraynauld/Chirpy/internal/auth"
+	"github.com/npayetteraynauld/Chirpy/internal/database"
 )
 
 type User struct {
@@ -19,7 +21,8 @@ type User struct {
 
 func (cfg *apiConfig) handlerUsers(w http.ResponseWriter, req *http.Request) {
 	type parameters struct {
-		Email string `json:"email"`
+		Email    string `json:"email"`
+		Password string `json:"password"`
 	}
 
 	decoder := json.NewDecoder(req.Body)
@@ -29,15 +32,24 @@ func (cfg *apiConfig) handlerUsers(w http.ResponseWriter, req *http.Request) {
 		respondWithError(w, http.StatusInternalServerError, "Couldn't decode parameters", err)
 		return
 	}
+	
+	//check if password was inputted
+	if params.Password == "" {
+		respondWithError(w, http.StatusBadRequest, "Invalid Password", nil)
+	}
 
-	/*
-	if !isEmail(params.Body) {
-		respondWithError(w, 400, "invalid email", nil)
+	//hash password
+	hashedpsswd, err := auth.HashPassword(params.Password)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Couldn't hash password", err)
 		return
 	}
-	*/
 
-	user, err := cfg.queries.CreateUser(req.Context(), params.Email)
+	//Create user in DB
+	user, err := cfg.queries.CreateUser(req.Context(), database.CreateUserParams{
+		Email: params.Email,
+		HashedPassword: hashedpsswd,
+	})
 	if err != nil {
 		s := fmt.Sprintf("Error creating user (email: %s)", params.Email)
 		respondWithError(w, 400, s, err)
@@ -51,6 +63,39 @@ func (cfg *apiConfig) handlerUsers(w http.ResponseWriter, req *http.Request) {
 		Email: user.Email,
 	})
 	
+}
+
+func (cfg *apiConfig) handlerLogin(w http.ResponseWriter, req *http.Request) {
+	type parameters struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+
+	decoder := json.NewDecoder(req.Body)
+	params := parameters{}
+	err := decoder.Decode(&params)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Couldn't decode parameters", err)
+		return
+	}
+
+	user, err := cfg.queries.GetUserFromEmail(req.Context(), params.Email)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "incorrect email or password", err)
+		return
+	}
+
+	if err = auth.CheckPasswordHash(params.Password, user.HashedPassword); err != nil {
+		respondWithError(w, http.StatusUnauthorized, "incorrect email or password", err)
+		return
+	} 
+
+	respondWithJson(w, http.StatusOK, User{
+			ID: user.ID,
+			CreatedAt: user.CreatedAt,
+			UpdatedAt: user.UpdatedAt,
+			Email: user.Email,
+		})
 }
 
 /*
