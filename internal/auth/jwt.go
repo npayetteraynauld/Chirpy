@@ -3,10 +3,22 @@ package auth
 import (
  "time"
  "errors"
+ "net/http"
+ "strings"
 
  "github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 )
+
+func GetBearerToken(headers http.Header) (string, error) {
+ authHeader := headers.Get("Authorization")
+ if authHeader == "" {
+  return "", errors.New("No Authorization header")
+ }
+
+ tokenString := strings.TrimPrefix(authHeader, "Bearer ")
+ return tokenString, nil
+}
 
 func MakeJWT(userID uuid.UUID, tokenSecret string, expiresIn time.Duration) (string, error) {
  currentTime := time.Now().UTC()

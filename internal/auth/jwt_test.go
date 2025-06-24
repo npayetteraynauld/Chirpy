@@ -2,9 +2,65 @@ package auth
 
 import (
 	"testing"
-	"github.com/google/uuid"
 	"time"
+	"net/http"
+
+	"github.com/google/uuid"
 )
+
+func TestGetBearerToken(t *testing.T) {
+    tests := []struct {
+        name      string
+        headers   http.Header
+        wantToken string
+        wantErr   bool
+    }{
+        {
+            name: "Valid Bearer token",
+            headers: http.Header{
+                "Authorization": []string{"Bearer abcdef12345"},
+            },
+            wantToken: "abcdef12345",
+            wantErr:   false,
+        },
+        {
+            name:    "Missing Authorization header",
+            headers: http.Header{},
+            wantToken: "",
+            wantErr:   true,
+        },
+        {
+            name: "Authorization header without Bearer",
+            headers: http.Header{
+                "Authorization": []string{"abcdef12345"},
+            },
+            wantToken: "abcdef12345", 
+            wantErr:   false,
+        },
+        {
+            name: "Bearer token with extra spaces",
+            headers: http.Header{
+                "Authorization": []string{"Bearer    tokenwithspaces"},
+            },
+            wantToken: "   tokenwithspaces",
+            wantErr:   false,
+        },
+    }
+
+    for _, tt := range tests {
+        t.Run(tt.name, func(t *testing.T) {
+            gotToken, err := GetBearerToken(tt.headers)
+
+            if (err != nil) != tt.wantErr {
+                t.Errorf("expected error: %v, got: %v", tt.wantErr, err)
+            }
+
+            if gotToken != tt.wantToken {
+                t.Errorf("expected token: %q, got: %q", tt.wantToken, gotToken)
+            }
+        })
+    }
+}
 
 func TestJwtToken(t *testing.T) {
 	tokenSecret := "aladsoo234adlafk"

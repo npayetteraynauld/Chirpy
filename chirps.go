@@ -8,12 +8,27 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/npayetteraynauld/Chirpy/internal/database"
+	"github.com/npayetteraynauld/Chirpy/internal/auth"
 )
 
 func (cfg *apiConfig) handlerPostChirps(w http.ResponseWriter, req *http.Request) {
+	//retrieve tokenstring from header
+	authToken, err := auth.GetBearerToken(req.Header)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "No authentication header", err)
+		return
+	}
+	
+	//Validate JWT
+	userIDFromToken, err := auth.ValidateJWT(authToken, cfg.secret)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "invalid auth token", err)
+		return 
+	}
+
+
 	type parameters struct {
 		Body   string    `json:"body"`
-		UserId uuid.UUID `json:"user_id"`
 	}
 
 	type returnVals struct {
@@ -26,11 +41,12 @@ func (cfg *apiConfig) handlerPostChirps(w http.ResponseWriter, req *http.Request
 
 	decoder := json.NewDecoder(req.Body)
 	params := parameters{}
-	err := decoder.Decode(&params)
+	err = decoder.Decode(&params)
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Couldn't decode parameters", err)
 		return
 	}
+
 
 	const maxChirpLength = 140
 	if len(params.Body) > maxChirpLength {
@@ -40,7 +56,7 @@ func (cfg *apiConfig) handlerPostChirps(w http.ResponseWriter, req *http.Request
 
 	chirp, err := cfg.queries.CreateChirp(req.Context(), database.CreateChirpParams{
 		Body: params.Body,
-		UserID: params.UserId,
+		UserID: userIDFromToken,
 	})
 	if err != nil {
 		respondWithError(w, http.StatusInternalServerError, "Couldn't create chirp", err)
