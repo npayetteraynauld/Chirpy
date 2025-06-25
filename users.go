@@ -19,6 +19,7 @@ type User struct {
 	Email        string    `json:"email"`
 	Token        string    `json:"token"`
 	RefreshToken string    `json:"refresh_token"`
+	IsChirpyRed  bool      `json:"is_chirpy_red"`
 }
 
 func (cfg *apiConfig) handlerUsers(w http.ResponseWriter, req *http.Request) {
@@ -63,8 +64,68 @@ func (cfg *apiConfig) handlerUsers(w http.ResponseWriter, req *http.Request) {
 		CreatedAt: user.CreatedAt,
 		UpdatedAt: user.UpdatedAt,
 		Email: user.Email,
+		IsChirpyRed: user.IsChirpyRed,
 	})
 	
+}
+
+func (cfg *apiConfig) handlerUpdateUser(w http.ResponseWriter, req *http.Request) {
+	//retrieve tokenstring from header
+	authToken, err := auth.GetBearerToken(req.Header)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "No authentication header", err)
+		return
+	}
+	
+	//Validate JWT
+	userIDFromToken, err := auth.ValidateJWT(authToken, cfg.secret)
+	if err != nil {
+		respondWithError(w, http.StatusUnauthorized, "invalid auth token", err)
+		return 
+	}
+
+	type parameters struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+
+	decoder := json.NewDecoder(req.Body)
+	params := parameters{}
+	err = decoder.Decode(&params)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Couldn't decode parameters", err)
+		return
+	}
+
+	hashedPassword, err := auth.HashPassword(params.Password)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Couldn't hash password", err)
+		return 
+	}
+
+	err = cfg.queries.UpdateEmailAndPassword(req.Context(), database.UpdateEmailAndPasswordParams{
+		Email: params.Email,
+		HashedPassword: hashedPassword,
+		ID: userIDFromToken,
+	})
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Couldn't update user", err)
+		return
+	}
+
+	user, err := cfg.queries.GetUserFromID(req.Context(), userIDFromToken)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "Couldn't fetch user form db", err)
+		return 
+	}
+
+	respondWithJson(w, http.StatusOK, User{
+		ID: user.ID,         
+		CreatedAt: user.CreatedAt,
+		UpdatedAt: user.UpdatedAt, 
+		Email: user.Email,
+		IsChirpyRed: user.IsChirpyRed,
+	})
 }
 
 func (cfg *apiConfig) handlerLogin(w http.ResponseWriter, req *http.Request) {
@@ -122,6 +183,7 @@ func (cfg *apiConfig) handlerLogin(w http.ResponseWriter, req *http.Request) {
 			Email: user.Email,
 			Token: tokenString,
 			RefreshToken: refreshTokenSQL.Token,
+			IsChirpyRed: user.IsChirpyRed,
 		})
 }
 
@@ -175,9 +237,4 @@ func (cfg *apiConfig) handlerRevoke(w http.ResponseWriter, req *http.Request) {
 	w.WriteHeader(204)
 }
 
-/*
-func isEmail(s string) bool {
-	emailRegex := regexp.MustCompile(`^[a-zA-Z0-9._%%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`)
-  return emailRegex.MatchString(s)
-}
-*/
+

@@ -18,6 +18,7 @@ type apiConfig struct {
 	queries        *database.Queries
 	platform       string
 	secret         string
+	polkaKey       string
 }
 
 func main() {
@@ -25,6 +26,7 @@ func main() {
 	dbURL := os.Getenv("DB_URL")
 	plat := os.Getenv("PLATFORM")
 	sec := os.Getenv("SECRET")
+	polka := os.Getenv("POLKA_KEY")
 
 	db, err := sql.Open("postgres", dbURL)
 	if err != nil {
@@ -41,6 +43,7 @@ func main() {
 		queries: dbQueries,
 		platform: plat,
 		secret: sec,
+		polkaKey: polka,
 	}
 
 	mux := http.NewServeMux()
@@ -50,14 +53,15 @@ func main() {
 	mux.HandleFunc("GET /api/healthz", handlerHealthz)
 
 	mux.HandleFunc("POST /api/users", apiCfg.handlerUsers)
+	mux.HandleFunc("PUT /api/users", apiCfg.handlerUpdateUser)
 	mux.HandleFunc("POST /api/login", apiCfg.handlerLogin)
 	mux.HandleFunc("POST /api/refresh", apiCfg.handlerRefresh)
 	mux.HandleFunc("POST /api/revoke", apiCfg.handlerRevoke)
 
+	mux.HandleFunc("/api/chirps", apiCfg.handlerChirps)
+	mux.HandleFunc("/api/chirps/{chirpID}", apiCfg.handlerChirpsByID)
 
-	mux.HandleFunc("POST /api/chirps", apiCfg.handlerPostChirps)
-	mux.HandleFunc("GET /api/chirps", apiCfg.handlerGetChirps)
-	mux.HandleFunc("GET /api/chirps/{chirpID}", apiCfg.handlerGetChirp)
+	mux.HandleFunc("POST /api/polka/webhooks", apiCfg.handlerPolkaWebhooks)
 
 	mux.HandleFunc("GET /admin/metrics", apiCfg.handlerMetrics)
 	mux.HandleFunc("POST /admin/reset", apiCfg.handlerReset)

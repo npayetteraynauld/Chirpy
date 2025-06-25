@@ -25,6 +25,11 @@ INNER JOIN refresh_tokens rf
 ON u.id = rf.user_id
 WHERE rf.token = $1;
 
+-- name: GetRefreshTokenFromUserID :one
+SELECT * FROM refresh_tokens 
+WHERE user_id = $1
+AND expires_at IS NULL;
+
 -- name: RevokeRefreshToken :exec
 UPDATE refresh_tokens
 SET revoked_at = NOW(), updated_at = NOW()
