@@ -17,6 +17,13 @@ WHERE $1 = id;
 SELECT * FROM chirps
 ORDER BY created_at ASC;
 
+-- name: GetChirpsFromUserID :many
+select c.* 
+from chirps c
+inner join users u ON c.user_id = u.id
+where u.id = $1
+order by c.created_at asc;
+
 -- name: DeleteChirp :exec
 DELETE FROM chirps
 WHERE id = $1;

@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 	"time"
+	"sort"
 
 	"github.com/google/uuid"
 	"github.com/npayetteraynauld/Chirpy/internal/database"
@@ -13,19 +14,49 @@ import (
 
 func (cfg *apiConfig) handlerChirps(w http.ResponseWriter, req *http.Request) {
 	if req.Method == "GET" {
-		//Get all chirps
-		chirps, err := cfg.queries.GetChirps(req.Context())
-		if err != nil {
-			respondWithError(w, http.StatusInternalServerError, "Couldn't get chirps", err)
-			return
-		}
-
 		type returnVals struct {
 				ID        uuid.UUID `json:"id"`
 				CreatedAt time.Time `json:"created_at"`
 				UpdatedAt time.Time `json:"updated_at"`
 				Body      string    `json:"body"`
 				UserID    uuid.UUID `json:"user_id"`
+		}
+
+		var chirps []database.Chirp
+		var err error
+
+		//Check for optional queries
+		optionalAuthorID := req.URL.Query().Get("author_id")
+		optionalSorting := req.URL.Query().Get("sort")
+
+		if optionalAuthorID != "" {
+			//Get only chirps from author
+			authorID, err := uuid.Parse(optionalAuthorID)
+			if err != nil {
+				respondWithError(w, http.StatusInternalServerError, "Couldn't parse ID", err)
+				return
+			}
+
+			chirps, err = cfg.queries.GetChirpsFromUserID(req.Context(), authorID)
+			if err != nil {
+				respondWithError(w, http.StatusInternalServerError, "Couldn't get chirps", err)
+				return 
+			}
+
+		} else {
+			//Get all chirps
+			chirps, err = cfg.queries.GetChirps(req.Context())
+			if err != nil {
+				respondWithError(w, http.StatusInternalServerError, "Couldn't get chirps", err)
+				return
+			}
+		}
+
+		//Check if optional sort arg is "desc"
+		if optionalSorting == "desc" {
+			sort.Slice(chirps, func(i, j int) bool{
+				return chirps[i].CreatedAt.After(chirps[j].CreatedAt)
+			})
 		}
 
 		var returns []returnVals
